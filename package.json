@@ -1,0 +1,84 @@
+{
+  "name": "stacksweep",
+  "productName": "StackSweep",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Delete node_modules, .next, dist, build, Gradle, Rust target, Python venv and other dev caches on Windows — safely. Detects each project's stack and never touches committed files.",
+  "keywords": [
+    "node_modules",
+    "node-modules-cleaner",
+    "delete-node-modules",
+    "dev-cache-cleaner",
+    "disk-cleanup",
+    "free-disk-space",
+    "build-cache",
+    "gradle",
+    "rust",
+    "python-venv",
+    "nextjs",
+    "windows",
+    "electron",
+    "npkill-alternative"
+  ],
+  "homepage": "https://github.com/mehrabsha/dev-cache-cleaner",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mehrabsha/dev-cache-cleaner.git"
+  },
+  "author": "mehrabsha",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "type": "module",
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "electron .",
+    "check": "node src/selftest.js",
+    "scan": "node src/cli.js",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.mehrabsha.stacksweep",
+    "productName": "StackSweep",
+    "copyright": "Copyright © mehrabsha",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "electron/**",
+      "app/**",
+      "src/**",
+      "!src/selftest.js",
+      "!src/cli.js"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "StackSweep",
+      "artifactName": "StackSweep-Setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
+  }
+}

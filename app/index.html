@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'"
+    />
+    <title>StackSweep</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-view="setup">
+    <header class="toolbar" id="toolbar">
+      <div class="toolbar-lead">
+        <div class="toolbar-title">
+          <h1 id="title">StackSweep</h1>
+          <p id="subtitle">Project-aware — deletions are permanent</p>
+        </div>
+      </div>
+
+      <div class="toolbar-trail">
+        <div class="segmented" id="grouping" role="radiogroup" aria-label="Group by" hidden>
+          <button type="button" role="radio" aria-checked="true" data-group="project">Projects</button>
+          <button type="button" role="radio" aria-checked="false" data-group="kind">Kinds</button>
+        </div>
+        <button class="button" id="rescan" type="button" hidden>New Scan</button>
+        <button class="button primary" id="stop" type="button" hidden>Stop</button>
+
+        <div class="segmented icons" id="theme" role="radiogroup" aria-label="Appearance">
+          <button type="button" role="radio" data-theme="system" aria-checked="true" title="Match the system">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="1.8" y="3" width="12.4" height="8.4" rx="1.4" />
+              <path d="M5.4 13.6h5.2" />
+            </svg>
+            <span class="sr-only">Automatic</span>
+          </button>
+          <button type="button" role="radio" data-theme="light" aria-checked="false" title="Light">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="3.1" />
+              <path d="M8 1.4v1.5M8 13.1v1.5M1.4 8h1.5M13.1 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" />
+            </svg>
+            <span class="sr-only">Light</span>
+          </button>
+          <button type="button" role="radio" data-theme="dark" aria-checked="false" title="Dark">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
+            </svg>
+            <span class="sr-only">Dark</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="shell">
+      <nav class="sidebar" id="sidebar" aria-label="Findings">
+        <div class="sidebar-empty" id="sidebar-empty">
+          <p>Pick a folder or a drive, then scan. Projects and what they can shed show up here.</p>
+        </div>
+        <div class="sidebar-groups" id="sidebar-groups" hidden></div>
+      </nav>
+
+      <main class="content" id="content">
+        <!-- ── setup ──────────────────────────────────────────────────── -->
+        <section class="view" id="view-setup">
+          <div class="hero">
+            <div class="hero-mark" aria-hidden="true">
+              <svg viewBox="0 0 48 48">
+                <path d="M24 6c-1.2 0-2.2.9-2.4 2.1l-1.3 9.4h7.4l-1.3-9.4A2.4 2.4 0 0 0 24 6Z" class="mark-handle" />
+                <path d="M17 20h14l2.6 15.5A4 4 0 0 1 29.7 40H18.3a4 4 0 0 1-3.9-4.5L17 20Z" class="mark-body" />
+                <path d="M20 25v9M24 25v9M28 25v9" class="mark-bristles" />
+              </svg>
+            </div>
+            <h2>Clear out what your projects can rebuild</h2>
+            <p>
+              Finds every project in a folder or drive, works out its stack — Node, Next, Gradle, Rust,
+              Python, .NET and more — and offers only what that stack writes and would write again.
+              Committed files, SDKs and installed apps are never offered. Nothing is deleted until you
+              tick it and confirm, and then it is gone for good.
+            </p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Folders</h3>
+              <span class="panel-header-trail">
+                <button class="link-button" id="add-folder" type="button">Choose folder…</button>
+              </span>
+            </div>
+            <ul class="list" id="folders"></ul>
+          </div>
+
+          <div class="panel" id="drives-panel" hidden>
+            <div class="panel-header">
+              <h3>Whole drives</h3>
+              <span class="panel-note">Installed software, SDKs and system folders are skipped</span>
+            </div>
+            <ul class="list" id="drives"></ul>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><h3>Options</h3></div>
+            <ul class="list" id="options"></ul>
+          </div>
+
+          <div class="cta">
+            <button class="button primary large" id="scan" type="button">Scan</button>
+            <p class="cta-note" id="scan-note">This step only reads.</p>
+          </div>
+        </section>
+
+        <!-- ── working ────────────────────────────────────────────────── -->
+        <section class="view" id="view-working">
+          <header class="work-head">
+            <div class="work-titles">
+              <h2 id="working-title">Looking for projects</h2>
+              <p id="working-note">Reading directories — nothing is changed and nothing leaves this machine.</p>
+            </div>
+            <span class="work-phase" id="work-phase">Walking</span>
+          </header>
+
+          <div class="work-bar indeterminate" id="work-bar" role="progressbar" aria-labelledby="working-title">
+            <div class="work-bar-fill" id="work-bar-fill"></div>
+          </div>
+          <div class="work-bar-legend">
+            <span id="work-left">Starting…</span>
+            <span id="work-right"></span>
+          </div>
+
+          <div class="work-stats" id="work-stats"></div>
+
+          <section class="work-log-card">
+            <div class="work-log-head">
+              <h3>Activity</h3>
+              <span class="panel-note" id="work-log-note"></span>
+            </div>
+            <ol class="work-log" id="work-log" aria-live="polite" aria-relevant="additions"></ol>
+          </section>
+        </section>
+
+        <!-- ── results ────────────────────────────────────────────────── -->
+        <section class="view" id="view-results">
+          <div id="overview"></div>
+          <div class="panel" id="list-panel">
+            <div class="panel-header">
+              <h3 id="list-title">Findings</h3>
+              <span class="panel-header-trail">
+                <button class="link-button" id="select-safe" type="button">Select all safe</button>
+                <span class="panel-note" id="list-count"></span>
+              </span>
+            </div>
+            <ul class="list items" id="items"></ul>
+          </div>
+
+          <div class="removal-bar" id="removal-bar" hidden>
+            <div class="removal-summary">
+              <span class="removal-count" id="removal-count">0 selected</span>
+              <span class="removal-note" id="removal-note"></span>
+              <div class="removal-progress" id="removal-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" hidden>
+                <div class="removal-progress-fill" id="removal-progress-fill"></div>
+              </div>
+            </div>
+            <button class="button" id="removal-clear" type="button">Clear</button>
+            <button class="button danger" id="removal-go" type="button">Delete Permanently</button>
+            <button class="button" id="removal-stop" type="button" hidden>Stop</button>
+          </div>
+        </section>
+      </main>
+
+      <aside class="inspector" id="inspector" hidden aria-label="Details">
+        <div class="inspector-head">
+          <button class="icon-button" id="inspector-close" type="button" title="Close">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg>
+            <span class="sr-only">Close</span>
+          </button>
+        </div>
+        <div class="inspector-body" id="inspector-body"></div>
+      </aside>
+    </div>
+
+    <footer class="statusbar" id="statusbar">
+      <span class="status-left" id="status-left">Ready</span>
+      <span class="status-right" id="status-right"></span>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,2285 @@
+/**
+ * StackSweep — the look, inherited from Disk Janitor.
+ *
+ * Built to Apple's Human Interface Guidelines, and to the five principles the
+ * 2026 HIG opens with. The ones that actually changed decisions here:
+ *
+ *   Simplicity   is "removing friction", not minimalism. Every row says what
+ *                the thing is, how big it is, and what to do about it. The
+ *                twenty kind confidences, the score probabilities and the raw
+ *                request bodies are all still there — one disclosure away, in
+ *                the inspector, where they inform instead of shout.
+ *   Agency       nothing scans on its own, nothing is ticked for you that has
+ *                a cost, and the price is on screen before the button is.
+ *   Familiarity  a Mac window: translucent sidebar, unified toolbar, inset
+ *                grouped lists, a segmented control, a status bar. The space
+ *                breakdown is the bar from About This Mac, because that is
+ *                the one chart everybody here has already learned to read.
+ *
+ * Colour is semantic and swaps for dark mode rather than being flipped.
+ * Typography is the system face at macOS's own sizes (13px body, 11px
+ * secondary). Geometry sits on a 4pt grid.
+ */
+
+/* ── tokens ───────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces, window → content → card. */
+  --bg-window: #ececec;
+  --bg-sidebar: rgba(246, 246, 246, 0.72);
+  --bg-content: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f2f2f4;
+  --bg-elevated: #ffffff;
+  --fill-subtle: rgba(0, 0, 0, 0.04);
+  --fill-quaternary: rgba(0, 0, 0, 0.06);
+
+  /* Ink. macOS label colours are alpha over the surface, not flat greys. */
+  --text-primary: rgba(0, 0, 0, 0.87);
+  --text-secondary: rgba(0, 0, 0, 0.54);
+  --text-tertiary: rgba(0, 0, 0, 0.32);
+  --separator: rgba(0, 0, 0, 0.09);
+  --separator-strong: rgba(0, 0, 0, 0.14);
+
+  --accent: #007aff;
+  --accent-pressed: #0063d1;
+  --accent-wash: rgba(0, 122, 255, 0.12);
+  --on-accent: #ffffff;
+
+  /* Verdict colours. Validated as a set against this surface — see the
+     dataviz palette check; the light teal sits at 2.82:1, which is why every
+     segment ships with a visible label rather than colour alone. */
+  --verdict-safe: #1baf7a;
+  --verdict-review: #eb6834;
+  --verdict-keep: #2a78d6;
+  --verdict-protected: #8a8a8e;
+  /* Removal is the one destructive affordance, so it wears the reserved
+     critical step rather than a categorical hue. */
+  --verdict-critical: #d03b3b;
+  --verdict-critical-pressed: #b83232;
+  --chart-track: rgba(0, 0, 0, 0.07);
+
+  /* Geometry, on a 4pt grid. */
+  --r-card: 12px;
+  --r-control: 8px;
+  --r-pill: 999px;
+  --toolbar-h: 52px;
+  --status-h: 30px;
+  --sidebar-w: 264px;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --shadow-float: 0 12px 34px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/**
+ * Dark mode is declared twice on purpose, and the duplication is the point:
+ * the media query covers "match the system", the attribute covers the switch
+ * in the toolbar, and the switch has to win in both directions -- the
+ * `:not([data-theme="light"])` guard lets an explicit Light beat an OS that
+ * is dark. The values are re-stepped for the dark surface, never flipped.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg-window: #1c1c1e;
+    --bg-sidebar: rgba(36, 36, 38, 0.72);
+    --bg-content: #1c1c1e;
+    --bg-card: #2c2c2e;
+    --bg-card-hover: #343436;
+    --bg-elevated: #2c2c2e;
+    --fill-subtle: rgba(255, 255, 255, 0.05);
+    --fill-quaternary: rgba(255, 255, 255, 0.09);
+
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.56);
+    --text-tertiary: rgba(255, 255, 255, 0.34);
+    --separator: rgba(255, 255, 255, 0.1);
+    --separator-strong: rgba(255, 255, 255, 0.16);
+
+    --accent: #0a84ff;
+    --accent-pressed: #409cff;
+    --accent-wash: rgba(10, 132, 255, 0.2);
+
+    /* Re-stepped for the dark surface, not flipped. */
+    --verdict-safe: #199e70;
+    --verdict-review: #d95926;
+    --verdict-keep: #3987e5;
+    --verdict-protected: #8a8a8e;
+    --verdict-critical: #e0524f;
+    --verdict-critical-pressed: #ef6f6c;
+    --chart-track: rgba(255, 255, 255, 0.1);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+    --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* The same steps again, for when the switch in the toolbar overrides the OS. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-window: #1c1c1e;
+  --bg-sidebar: rgba(36, 36, 38, 0.72);
+  --bg-content: #1c1c1e;
+  --bg-card: #2c2c2e;
+  --bg-card-hover: #343436;
+  --bg-elevated: #2c2c2e;
+  --fill-subtle: rgba(255, 255, 255, 0.05);
+  --fill-quaternary: rgba(255, 255, 255, 0.09);
+
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.56);
+  --text-tertiary: rgba(255, 255, 255, 0.34);
+  --separator: rgba(255, 255, 255, 0.1);
+  --separator-strong: rgba(255, 255, 255, 0.16);
+
+  --accent: #0a84ff;
+  --accent-pressed: #409cff;
+  --accent-wash: rgba(10, 132, 255, 0.2);
+
+  /* Re-stepped for the dark surface, not flipped. */
+  --verdict-safe: #199e70;
+  --verdict-review: #d95926;
+  --verdict-keep: #3987e5;
+  --verdict-protected: #8a8a8e;
+  --verdict-critical: #e0524f;
+  --verdict-critical-pressed: #ef6f6c;
+  --chart-track: rgba(255, 255, 255, 0.1);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+}
+
+/* ── base ─────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Every component below sets its own `display`, which would otherwise beat
+   the user-agent rule for `[hidden]` and leave hidden things on screen. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-window);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+    "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  cursor: default;
+  user-select: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 2.5px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--text-tertiary);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+  background-clip: content-box;
+}
+
+/* ── toolbar ──────────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 var(--toolbar-h);
+  padding: 0 16px 0 var(--toolbar-lead, 16px);
+  background: var(--bg-sidebar);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border-bottom: 0.5px solid var(--separator);
+  -webkit-app-region: drag;
+  z-index: 30;
+}
+
+/* Windows draws its caption buttons *over* the toolbar, so the controls have
+   to keep out of their way or they sit under the close button. The Window
+   Controls Overlay env vars give the exact reserved width; the fallback is
+   the standard three-button cluster for when they are unavailable. */
+html[data-platform="win32"] .toolbar {
+  padding-right: calc(100% - env(titlebar-area-width, calc(100% - 138px)) + 8px);
+}
+
+.toolbar-lead,
+.toolbar-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.toolbar-title {
+  min-width: 0;
+}
+
+.toolbar-title h1 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.toolbar-title p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar button,
+.toolbar .segmented {
+  -webkit-app-region: no-drag;
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 13px;
+  border: none;
+  border-radius: var(--r-control);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.12s var(--ease), transform 0.08s var(--ease);
+}
+
+.button:hover {
+  background: var(--bg-card-hover);
+}
+
+.button:active {
+  transform: scale(0.97);
+}
+
+.button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+.button.primary:hover {
+  background: var(--accent-pressed);
+}
+
+.button.large {
+  height: 36px;
+  padding: 0 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: background 0.12s var(--ease);
+}
+
+.icon-button:hover {
+  background: var(--fill-quaternary);
+  color: var(--text-primary);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--fill-quaternary);
+}
+
+.segmented button {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.segmented button[aria-checked="true"] {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+/* The appearance switch: three glyphs, no labels, because the glyphs are the
+   ones everybody already knows. The names are still there for screen readers
+   and as tooltips. */
+.segmented.icons button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  padding: 0;
+}
+
+.segmented.icons svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.select {
+  height: 26px;
+  padding: 0 26px 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: var(--bg-card) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3.5 5 6 2.5 8.5 5M3.5 7 6 9.5 8.5 7' fill='none' stroke='%23888' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 7px center / 11px;
+  box-shadow: var(--shadow-card);
+  font-size: 12.5px;
+  appearance: none;
+}
+
+/* The switch. Present because a scan location is a thing you turn on, and a
+   switch is what macOS uses for exactly that. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--fill-quaternary);
+  transition: background 0.2s var(--ease);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s var(--ease);
+}
+
+.switch[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+}
+
+/* ── shell ────────────────────────────────────────────────────────────── */
+
+.shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.sidebar {
+  flex: 0 0 var(--sidebar-w);
+  padding: 10px 10px 16px;
+  overflow-y: auto;
+  background: var(--bg-sidebar);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border-right: 0.5px solid var(--separator);
+}
+
+.sidebar-empty {
+  padding: 18px 12px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+
+.sidebar-section + .sidebar-section {
+  margin-top: 18px;
+}
+
+.sidebar-heading {
+  padding: 0 10px 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  transition: background 0.1s var(--ease);
+}
+
+.nav-item:hover {
+  background: var(--fill-subtle);
+}
+
+.nav-item[aria-current="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.nav-item[aria-current="true"] .nav-count {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.nav-swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--swatch, var(--text-tertiary));
+}
+
+.nav-label {
+  flex: 1;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-count {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the apps list ────────────────────────────────────────────────────── */
+
+/* Grouped by the software that owns the tree, because "Spotify left 900 MB
+   behind and Spotify is gone" is a sentence, and twelve rows of paths is not.
+   The installed/not-installed line is the index in `installed.js` talking —
+   the reading that finds the junk nothing else does. */
+.app-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "icon name count" "icon state count";
+  column-gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 5px 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  transition: background 0.1s var(--ease);
+}
+
+.app-item:hover {
+  background: var(--fill-subtle);
+}
+
+.app-item[aria-current="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--fill-quaternary);
+  overflow: hidden;
+}
+
+.app-item[aria-current="true"] .app-icon {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.app-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.app-icon svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-item[aria-current="true"] .app-icon svg {
+  stroke: var(--on-accent);
+}
+
+.app-name {
+  grid-area: name;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* State is a word and a dot, never the dot alone. */
+.app-state {
+  grid-area: state;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-item[aria-current="true"] .app-state,
+.app-item[aria-current="true"] .app-count {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.app-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--swatch, var(--text-tertiary));
+}
+
+.app-count {
+  grid-area: count;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── content ──────────────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg-content);
+}
+
+.view {
+  display: none;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 28px 0;
+}
+
+body[data-view="setup"] #view-setup,
+body[data-view="ready"] #view-ready,
+body[data-view="working"] #view-working,
+body[data-view="results"] #view-results {
+  display: block;
+}
+
+body[data-view="results"] .view {
+  max-width: 860px;
+}
+
+/* The two views with no action bar of their own still need room at the foot,
+   or their last row sits against the status bar. */
+#view-working,
+#view-results {
+  padding-bottom: 40px;
+}
+
+/* ── hero ─────────────────────────────────────────────────────────────── */
+
+.hero {
+  text-align: center;
+  padding: 2px 20px 20px;
+}
+
+.hero-mark {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 12px;
+}
+
+.hero-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mark-body {
+  fill: var(--accent);
+}
+.mark-handle {
+  fill: var(--text-tertiary);
+}
+.mark-bristles {
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.hero h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.hero p {
+  max-width: 460px;
+  margin: 0 auto;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* ── scan modes ───────────────────────────────────────────────────────── */
+
+/* How long it runs and where it looks were two controls asking one question,
+   so they are one control now, and it is asked in words. A seconds figure
+   tells you nothing about what you get; "the places programs leave things
+   behind" does. */
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 10px;
+}
+
+.mode {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 4px;
+  padding: 14px 15px 15px;
+  border: none;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  transition: background 0.14s var(--ease), transform 0.1s var(--ease);
+}
+
+.mode:hover {
+  background: var(--bg-card-hover);
+}
+
+.mode:active {
+  transform: scale(0.985);
+}
+
+.mode[aria-checked="true"] {
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-card);
+}
+
+.mode-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mode-glyph {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--fill-subtle);
+  color: var(--text-secondary);
+}
+
+.mode[aria-checked="true"] .mode-glyph {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.mode-glyph svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The selected state is a tick as well as a ring — never colour alone. */
+.mode-check {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+}
+
+.mode[aria-checked="true"] .mode-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.mode-check svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mode-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mode-tag {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.mode-blurb {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.mode-meta {
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── customise ────────────────────────────────────────────────────────── */
+
+.customize {
+  margin-top: 24px;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.customize > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  list-style: none;
+  font-size: 12.5px;
+  transition: background 0.1s var(--ease);
+}
+
+.customize > summary::-webkit-details-marker {
+  display: none;
+}
+
+.customize > summary:hover {
+  background: var(--bg-card-hover);
+}
+
+.customize > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-left-color: var(--text-tertiary);
+  transition: transform 0.18s var(--ease);
+}
+
+.customize[open] > summary::before {
+  transform: rotate(90deg) translateX(-1px);
+}
+
+.customize-title {
+  flex: 1;
+}
+
+.customize-count {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.customize-body {
+  padding: 0 14px 14px;
+}
+
+.customize-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0 8px;
+}
+
+.customize-body .list {
+  box-shadow: none;
+  background: var(--fill-subtle);
+}
+
+/* ── panels & lists ───────────────────────────────────────────────────── */
+
+/**
+ * One rhythm between the stacked sections of a view, on the 8pt grid.
+ *
+ * These were written per-pair as each section arrived, which meant the one
+ * combination nobody had paired yet — a mode grid followed by a panel — got
+ * no gap at all and the drive list sat flush against the cards. Every
+ * adjacency that can occur is listed here, at the same 24px, so the page has
+ * one spacing and not five.
+ */
+.modes + .panel,
+.modes + .customize,
+.modes + .cta,
+.panel + .panel,
+.panel + .customize,
+.panel + .cta,
+.customize + .cta,
+.customize + .panel,
+#overview + .panel {
+  margin-top: 24px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 7px;
+}
+
+.panel-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panel-note {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.row + .row {
+  box-shadow: inset 0 0.5px 0 var(--separator);
+}
+
+.list.items .row {
+  transition: background 0.1s var(--ease);
+}
+
+.list.items .row:hover {
+  background: var(--bg-card-hover);
+}
+
+.row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-size {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.row-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--fill-subtle);
+  overflow: hidden;
+}
+
+.row-icon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.row-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── selection & removal ──────────────────────────────────────────────── */
+
+.panel-header-trail {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+/* The tick is drawn so the glyph is centred at any display scaling: no
+   button padding, no fractional border eating into the box (the ring is an
+   inset shadow instead), and the glyph pinned to the middle absolutely rather
+   than left to a grid track that rounds differently at 125% and 150%. */
+.tick {
+  position: relative;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--separator-strong);
+  color: transparent;
+  line-height: 0;
+  transition: background 0.12s var(--ease), box-shadow 0.12s var(--ease);
+}
+
+.tick svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tick[aria-checked="true"] {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+}
+
+/* A blocked row shows a lock where the tick would be: same column, nothing
+   that looks clickable. */
+.tick-void {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  color: var(--text-tertiary);
+}
+
+.tick-void svg {
+  width: 12px;
+  height: 12px;
+}
+
+.button.danger {
+  background: var(--verdict-critical);
+  color: #fff;
+  box-shadow: none;
+}
+
+.button.danger:hover {
+  background: var(--verdict-critical-pressed);
+}
+
+.removal-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px -28px 0;
+  padding: 12px 28px 14px;
+  background: var(--bg-content);
+  border-top: 0.5px solid var(--separator);
+  animation: bar-in 0.22s var(--ease);
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.removal-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.removal-count {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.removal-note {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.removal-bar.is-deleting .removal-count {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.removal-note.is-stalled {
+  color: var(--verdict-review);
+}
+
+.removal-progress {
+  height: 5px;
+  margin-top: 8px;
+  border-radius: var(--r-pill);
+  background: var(--fill-subtle);
+  overflow: hidden;
+}
+
+.removal-progress-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}
+
+/* ── a row on its way out ─────────────────────────────────────────────── */
+
+/**
+ * Three states, and the order of them is the whole point: a person who has
+ * just authorised a deletion is watching to see *which* things went.
+ *
+ *   working   the row dims and a bar sweeps it — it has been handed over
+ *   gone      it leaves to the left and collapses, one after another
+ *   failed    it stays, in red, saying why
+ *
+ * Only `opacity` and `transform` move; the collapse afterwards animates
+ * `max-height` from a measured value, which is the one layout property worth
+ * paying for here because the rows below have to close the gap.
+ */
+.row.is-working,
+.list.items .row.is-working:hover {
+  color: var(--text-secondary);
+  position: relative;
+  overflow: hidden;
+  /* How far through this folder the delete is, filled in from the left. */
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 12%, transparent) var(--progress, 0%),
+    transparent var(--progress, 0%)
+  );
+}
+
+.row.is-working::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 14%, transparent),
+    transparent
+  );
+  animation: sweep-row 0.9s linear infinite;
+}
+
+@keyframes sweep-row {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.row.is-gone {
+  /* Exits are shorter and simpler than entrances: the decision is already
+     made, so the row gets out of the way rather than performing. */
+  opacity: 0;
+  transform: translateX(-10px) scale(0.985);
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+  pointer-events: none;
+}
+
+.row.is-collapsing {
+  max-height: 0 !important;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.22s var(--ease), padding 0.22s var(--ease), opacity 0.14s var(--ease);
+}
+
+.row.is-failed {
+  background: color-mix(in srgb, var(--verdict-critical) 10%, transparent);
+}
+
+.row.is-failed .row-sub {
+  color: var(--verdict-critical);
+}
+
+/* Reduced motion keeps the meaning and drops the movement: the row still
+   fades and still collapses, it just does not travel. */
+@media (prefers-reduced-motion: reduce) {
+  .row.is-gone {
+    transform: none;
+  }
+  .row.is-working::after {
+    animation: none;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+
+/* ── verdict badge ────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 9px 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--tint-wash, var(--fill-quaternary));
+  color: var(--tint-ink, var(--text-secondary));
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Status never rides on colour alone — every badge carries a glyph and a word. */
+.badge[data-verdict="safe_to_delete"] {
+  --tint-ink: var(--verdict-safe);
+  --tint-wash: color-mix(in srgb, var(--verdict-safe) 14%, transparent);
+}
+.badge[data-verdict="review_first"] {
+  --tint-ink: var(--verdict-review);
+  --tint-wash: color-mix(in srgb, var(--verdict-review) 14%, transparent);
+}
+.badge[data-verdict="keep"] {
+  --tint-ink: var(--verdict-keep);
+  --tint-wash: color-mix(in srgb, var(--verdict-keep) 14%, transparent);
+}
+.badge[data-verdict="protected"] {
+  --tint-ink: var(--verdict-protected);
+  --tint-wash: color-mix(in srgb, var(--verdict-protected) 16%, transparent);
+}
+
+/* ── the quote ────────────────────────────────────────────────────────── */
+
+/* The price, before the button that spends it. Nobody should have to click
+   something to find out what clicking it costs. */
+.quote-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 18px 20px;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.quote-figure {
+  flex: 0 0 auto;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-body p {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.quote-sub {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+/**
+ * The primary action, pinned.
+ *
+ * With five drives ticked the page is taller than the window, and a Scan
+ * button that scrolls off the bottom is a primary action you have to go
+ * looking for. Sticky keeps it on screen whatever the list length, and the
+ * material lets the content read as passing underneath rather than stopping.
+ */
+.cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  /* Bleeds through the view's own gutters so it reads as a bar across the
+     column, not a floating patch. A hairline and a solid surface, because a
+     gradient fading over a list row looks like a rendering fault rather than
+     a layer. */
+  margin: 24px -28px 0;
+  padding: 13px 28px 15px;
+  background: var(--bg-content);
+  border-top: 0.5px solid var(--separator);
+  text-align: center;
+}
+
+.cta-note {
+  max-width: 420px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* ── overview: stat tiles ─────────────────────────────────────────────── */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.tile {
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.tile-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.tile-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--swatch, var(--text-tertiary));
+}
+
+.tile-value {
+  margin-top: 5px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.tile-value.hero-figure {
+  font-size: 34px;
+}
+
+.tile-note {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+/* ── the space bar ────────────────────────────────────────────────────── */
+
+.chart-card {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chart-sub {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.spacebar {
+  display: flex;
+  gap: 2px; /* the surface gap — what separates the segments */
+  height: 22px;
+  margin: 14px 0 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--chart-track);
+}
+
+.spacebar span {
+  min-width: 3px;
+  background: var(--seg, var(--text-tertiary));
+  transition: flex-basis 0.5s var(--ease);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+}
+
+.legend-item:hover .legend-label {
+  color: var(--text-primary);
+}
+
+.legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--seg);
+}
+
+.legend-label {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  transition: color 0.1s var(--ease);
+}
+
+.legend-value {
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the biggest-locations bars ───────────────────────────────────────── */
+
+.bars {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.bar-name {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-value {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--chart-track);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0; /* square at the baseline, rounded at the data end */
+  background: var(--seg, var(--verdict-keep));
+  transition: width 0.5s var(--ease);
+}
+
+/* ── coverage note ────────────────────────────────────────────────────── */
+
+.note {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: var(--fill-subtle);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.note svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── working ──────────────────────────────────────────────────────────── */
+
+/**
+ * The waiting screen.
+ *
+ * A lone spinner is a lie of omission: it says "working" for forty seconds
+ * while it knows exactly how many entries it has walked, how much it has
+ * measured, which root it is in and how much of the budget is left. So it
+ * says those instead — a real bar against a known budget, live counters, and
+ * the walk narrating itself a line at a time.
+ */
+
+.work-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.work-titles h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.work-titles p {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.work-phase {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* A pulsing dot, so a stalled window still reads as alive. */
+.work-phase::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.work-bar {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--chart-track);
+  overflow: hidden;
+}
+
+.work-bar-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}
+
+/* When there is no honest percentage to show, sweep instead of inventing one. */
+.work-bar.indeterminate .work-bar-fill {
+  width: 34%;
+  animation: sweep 1.3s var(--ease) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.work-bar-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.work-stat {
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.work-stat-value {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.work-stat-label {
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+}
+
+.work-log-card {
+  margin-top: 24px;
+  border-radius: var(--r-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.work-log-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 8px;
+}
+
+.work-log-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.work-log {
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  max-height: 268px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.work-log li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  animation: log-in 0.24s var(--ease);
+}
+
+@keyframes log-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.work-log-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone, var(--text-tertiary));
+}
+
+.work-log-text {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.work-log-text strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.work-log-meta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-log-empty {
+  padding: 10px 14px 14px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+
+/* ── inspector ────────────────────────────────────────────────────────── */
+
+/* A split, not an overlay: opening the detail panel narrows the list rather
+   than covering the numbers the reader was just looking at. */
+.inspector {
+  flex: 0 0 360px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-left: 0.5px solid var(--separator);
+  animation: slide-in 0.28s var(--ease);
+}
+
+@keyframes slide-in {
+  from {
+    flex-basis: 0;
+    opacity: 0;
+  }
+}
+
+/* Narrow windows have no room to split, so there it floats over instead. */
+@media (max-width: 1080px) {
+  .inspector {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 360px;
+    box-shadow: var(--shadow-float);
+    z-index: 20;
+  }
+}
+
+.inspector-head {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 10px 0;
+}
+
+.inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px 28px;
+}
+
+.inspector h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.inspector .path {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  word-break: break-all;
+  user-select: text;
+}
+
+.inspector-verdict {
+  margin: 14px 0 6px;
+}
+
+.inspector-reason {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* "What is this" -- stated before the verdict, because a verdict on a thing
+   you cannot identify is not an answer. */
+.scope {
+  display: flex;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scope svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.row-scope {
+  color: var(--text-tertiary);
+}
+
+.member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.member-list li {
+  padding: 3px 0;
+  color: var(--text-secondary);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+
+.member-more {
+  color: var(--text-tertiary) !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  margin-top: 16px;
+  border-radius: 10px;
+  background: var(--separator);
+  overflow: hidden;
+}
+
+.fact {
+  padding: 9px 12px;
+  background: var(--bg-card);
+}
+
+.fact-label {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+}
+
+.fact-value {
+  margin-top: 1px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.evidence {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.evidence li {
+  display: flex;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.evidence svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--verdict-keep);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Everything that used to shout on the page lives behind one of these. */
+details.disclosure {
+  margin-top: 8px;
+  border-top: 0.5px solid var(--separator);
+  padding-top: 8px;
+}
+
+details.disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  list-style: none;
+}
+
+details.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.disclosure > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-left-color: currentColor;
+  transition: transform 0.18s var(--ease);
+}
+
+details.disclosure[open] > summary::before {
+  transform: rotate(90deg) translateX(-1px);
+}
+
+.disclosure-body {
+  padding: 6px 0 4px;
+}
+
+.meterline {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  align-items: center;
+  margin-top: 9px;
+  font-size: 11.5px;
+}
+
+.meterline-label {
+  color: var(--text-secondary);
+}
+
+.meterline-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.meterline-track {
+  grid-column: 1 / -1;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--chart-track);
+  overflow: hidden;
+}
+
+.meterline-fill {
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  background: var(--seg, var(--accent));
+}
+
+pre.raw {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--fill-subtle);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  user-select: text;
+}
+
+/* ── status bar ───────────────────────────────────────────────────────── */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 var(--status-h);
+  padding: 0 14px;
+  background: var(--bg-sidebar);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border-top: 0.5px solid var(--separator);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.status-left {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.meter-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-label {
+  color: var(--text-tertiary);
+}
+
+/* ── empty & error ────────────────────────────────────────────────────── */
+
+.empty {
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+}
+
+.banner {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--verdict-review) 12%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.banner svg {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--verdict-review);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── junk cleaner additions ──────────────────────────────────────────── */
+
+.badge[data-tier="safe"] {
+  --tint-ink: var(--verdict-safe);
+  --tint-wash: color-mix(in srgb, var(--verdict-safe) 14%, transparent);
+}
+.badge[data-tier="review"] {
+  --tint-ink: var(--verdict-review);
+  --tint-wash: color-mix(in srgb, var(--verdict-review) 14%, transparent);
+}
+.badge[data-tier="blocked"] {
+  --tint-ink: var(--verdict-protected);
+  --tint-wash: color-mix(in srgb, var(--verdict-protected) 16%, transparent);
+}
+
+.row-project {
+  font-weight: 600;
+}
+
+.row-sep {
+  color: var(--text-tertiary);
+}
+
+.row-active {
+  color: var(--verdict-review);
+}
+
+.row[data-tier="blocked"] .row-title,
+.row[data-tier="blocked"] .row-size {
+  color: var(--text-secondary);
+}
+
+.row.placeholder {
+  cursor: default;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+}
+
+.inspector-heading {
+  margin: 20px 0 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.inspector-heading + .evidence {
+  margin-top: 8px;
+}
+
+.evidence li[data-ok="yes"] svg {
+  stroke: var(--verdict-safe);
+}
+
+.evidence li[data-ok="no"] svg {
+  stroke: var(--verdict-critical);
+}
+
+.evidence li[data-ok="neutral"] svg {
+  stroke: none;
+  fill: var(--text-tertiary);
+  color: var(--text-tertiary);
+}
+
+.cmd {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--fill-subtle);
+  color: var(--text-primary);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 11.5px;
+  user-select: text;
+  word-break: break-all;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.status-right {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+details.skipped {
+  margin-top: 14px;
+}
+
+details.skipped .evidence li {
+  font-size: 11.5px;
+}
+
+details.skipped .evidence svg {
+  stroke: var(--text-tertiary);
+}
+
+.inspector .evidence,
+details.skipped .evidence {
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact-value {
+  word-break: break-word;
+}
