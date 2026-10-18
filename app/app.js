@@ -588,7 +588,12 @@ function renderOverview() {
   }
   host.append(tiles);
 
-  if (state.reclaimed) host.append(banner(`${bytes(state.reclaimed)} freed so far in this session.`));
+  if (state.reclaimed) {
+    const freed = banner(`${bytes(state.reclaimed)} freed so far in this session.`);
+    freed.classList.add("success");
+    freed.querySelector("svg").innerHTML = GLYPHS.check;
+    host.append(freed);
+  }
 
   const { skipped, unreadable, stats } = state.scan;
   if (skipped.length || unreadable.length || !stats.git) {

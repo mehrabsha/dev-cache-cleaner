@@ -2158,6 +2158,16 @@ pre.raw {
   stroke-linejoin: round;
 }
 
+/* Good news is not a warning. */
+.banner.success {
+  margin-top: 14px;
+  background: color-mix(in srgb, var(--verdict-safe) 13%, transparent);
+}
+
+.banner.success svg {
+  stroke: var(--verdict-safe);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

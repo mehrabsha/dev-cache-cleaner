@@ -256,6 +256,9 @@ export async function scan({ targets = [], includeRuntime = true, limits = {}, s
   const candidates = [];
   const scatteredByProject = new Map();
   const projects = new Map();
+  // Taken synchronously: walks run in parallel and await between noticing a
+  // project and storing it, so `projects.size + 1` handed two projects one id.
+  let projectCount = 0;
 
   const ctx = {
     entries: 0,
@@ -343,7 +346,7 @@ export async function scan({ targets = [], includeRuntime = true, limits = {}, s
       if (stacks.length) {
         project = {
           ...facts,
-          id: `p${projects.size + 1}`,
+          id: `p${++projectCount}`,
           stacks,
           name: projectName(dir),
           packageName: typeof facts.pkg?.name === "string" ? facts.pkg.name : null,

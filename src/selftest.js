@@ -350,6 +350,17 @@ test("fixture: a project's node_modules with a lockfile marker is safe", () => {
   assert.equal(tierOf("plain/node_modules"), "safe");
 });
 
+test("fixture: every project gets its own id, even when walked in parallel", () => {
+  const byId = new Map();
+  for (const item of result.items) {
+    if (!item.project) continue;
+    const dirs = byId.get(item.project.id) ?? new Set();
+    dirs.add(item.project.dir);
+    byId.set(item.project.id, dirs);
+  }
+  for (const [id, dirs] of byId) assert.equal(dirs.size, 1, `${id} is shared by ${[...dirs].join(", ")}`);
+});
+
 test("fixture: nested node_modules are counted inside their parent, never listed", () => {
   assert.equal(byRel.has("web/node_modules/react/node_modules"), false);
 });
