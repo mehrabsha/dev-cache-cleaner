@@ -22,6 +22,23 @@ touched.
 
 On a busy developer drive it typically finds tens of gigabytes, and a whole drive scans in under a minute.
 
+<p align="center">
+  <img src="docs/screenshots/01-results.png" alt="StackSweep scan results: 56 GB of node_modules, build output and caches found across 13 projects, sorted by size, with Safe, Review and Blocked labels" width="900" />
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/02-evidence.png" alt="Why a folder is safe to delete: the Next.js project owns .next, BUILD_ID marker found, nothing committed, ignored by .gitignore" /></td>
+    <td width="50%"><img src="docs/screenshots/03-deleting.png" alt="Deleting node_modules and build folders with live progress, bytes freed and a Stop button" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Every finding shows the evidence behind it</sub></td>
+    <td align="center"><sub>Live progress while deleting, with a Stop button</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots use a demo folder of sample projects.</sub>
+
 ## What it cleans
 
 | Stack | Folders it can remove |
