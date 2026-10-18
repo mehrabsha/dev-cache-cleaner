@@ -461,6 +461,35 @@ await testAsync("erase: Stop leaves the folder partly deleted and says so", asyn
   assert.equal(existsSync(join(base, "stopme/node_modules")), true, "the folder itself should still be there");
 });
 
+await testAsync("long paths: a node_modules nested past 260 characters is scanned and deleted completely", async () => {
+  // npm 2-style nesting: every package carries its own node_modules, so the
+  // deepest file sits far beyond MAX_PATH -- where Explorer and plain `rd` fail.
+  const project = join(base, "deep-app");
+  put("deep-app/package.json", { name: "deep-app" });
+  put("deep-app/src/index.js", "keep me");
+  put("deep-app/node_modules/.package-lock.json", "{}");
+  let rel = "deep-app/node_modules";
+  for (let level = 0; level < 14; level += 1) {
+    rel += `/some-long-package-name-${level}/node_modules`;
+    put(`${rel}/../index.js`);
+  }
+  put(`${rel}/leaf-package/index.js`, "deepest file");
+  const deepest = join(base, rel, "leaf-package", "index.js");
+  assert.ok(deepest.length > 600, `deepest path is only ${deepest.length} characters`);
+  assert.equal(existsSync(deepest), true);
+
+  const scanned = await scan({ targets: [{ id: "deep", path: project, label: "deep" }], limits: { minItemBytes: 1 } });
+  const item = scanned.items.find((entry) => entry.artifactName === "node_modules");
+  assert.ok(item, "node_modules was not found");
+  assert.equal(item.tier, "safe");
+  assert.ok(item.files >= 16, `only ${item.files} files counted — the deep ones were missed`);
+  assert.equal(item.truncated, false, "the measurement stopped short");
+
+  await eraseItem(item);
+  assert.equal(existsSync(join(project, "node_modules")), false, "node_modules is still there");
+  assert.equal(existsSync(join(project, "src", "index.js")), true, "the project's own files were touched");
+});
+
 await testAsync("erase: a set removes its members by name and never the project folder", async () => {
   const set = byRel.get("py/__pycache__");
   await eraseItem(set);
